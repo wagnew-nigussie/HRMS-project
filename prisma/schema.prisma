@@ -1,0 +1,415 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HR_MANAGER
+  EMPLOYEE
+  FINANCE
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum AttendanceStatus {
+  OPEN
+  CLOSED
+  CORRECTED
+}
+
+enum VerificationMethod {
+  IP
+  GPS
+  MANUAL
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReviewStatus {
+  DRAFT
+  SELF_REVIEW
+  MANAGER_REVIEW
+  CALIBRATION
+  CLOSED
+}
+
+enum FeedbackType {
+  SELF
+  PEER
+  MANAGER
+}
+
+enum DocumentStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  EXPIRED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  TELEGRAM
+  SLACK
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ScreeningJobStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ScreeningDecision {
+  PENDING
+  SHORTLIST
+  REJECT
+  HOLD
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(EMPLOYEE)
+  status       UserStatus @default(PENDING)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  employee      Employee?
+  refreshTokens RefreshToken[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  screeningJobs ResumeScreeningJob[]
+  @@index([role])
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  family    String    @db.Uuid
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([family])
+}
+
+model Employee {
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String         @unique @db.Uuid
+  firstName        String
+  lastName         String
+  employeeCode     String         @unique
+  department       String?
+  jobTitle         String?
+  hireDate         DateTime
+  probationEnd     DateTime?
+  employmentType   EmploymentType @default(FULL_TIME)
+  managerId        String?        @db.Uuid
+  baseSalary       Decimal        @db.Decimal(14, 2)
+  currency         String         @default("USD")
+  phone            String?
+  address          String?
+  emergencyContact String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager           Employee?           @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports           Employee[]          @relation("EmployeeManager")
+  attendances       Attendance[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  payslips          Payslip[]
+  documents         Document[]
+  okrs              OkrGoal[]
+  reviewsGiven      PerformanceReview[] @relation("Reviewer")
+  reviewsReceived   PerformanceReview[] @relation("Subject")
+  feedbacksGiven    Feedback[]          @relation("FeedbackAuthor")
+  feedbacksReceived Feedback[]          @relation("FeedbackSubject")
+  @@index([managerId])
+  @@index([department])
+  @@index([employeeCode])
+}
+
+model Attendance {
+  id            String             @id @default(uuid()) @db.Uuid
+  employeeId    String             @db.Uuid
+  clockInAt     DateTime
+  clockOutAt    DateTime?
+  status        AttendanceStatus   @default(OPEN)
+  ipAddress     String?
+  latitude      Decimal?           @db.Decimal(10, 7)
+  longitude     Decimal?           @db.Decimal(10, 7)
+  verification  VerificationMethod @default(IP)
+  overtimeHours Decimal?           @db.Decimal(6, 2)
+  notes         String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, clockInAt])
+  @@index([status])
+}
+
+model LeaveType {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String   @unique
+  accrualRate      Decimal  @db.Decimal(6, 2)
+  requiresApproval Boolean  @default(true)
+  approvalLevels   Int      @default(1)
+  probationAllowed Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  requests LeaveRequest[]
+  balances LeaveBalance[]
+}
+
+model LeaveBalance {
+  id          String   @id @default(uuid()) @db.Uuid
+  employeeId  String   @db.Uuid
+  leaveTypeId String   @db.Uuid
+  year        Int
+  entitled    Decimal  @db.Decimal(6, 2)
+  used        Decimal  @db.Decimal(6, 2) @default(0)
+  pending     Decimal  @db.Decimal(6, 2) @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([employeeId])
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid()) @db.Uuid
+  employeeId   String      @db.Uuid
+  leaveTypeId  String      @db.Uuid
+  startDate    DateTime
+  endDate      DateTime
+  startHalfDay Boolean     @default(false)
+  endHalfDay   Boolean     @default(false)
+  days         Decimal     @db.Decimal(6, 2)
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  currentLevel Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  employee  Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType      @relation(fields: [leaveTypeId], references: [id])
+  approvals ApprovalStep[]
+  @@index([employeeId, status])
+  @@index([status])
+}
+
+model ApprovalStep {
+  id             String      @id @default(uuid()) @db.Uuid
+  leaveRequestId String      @db.Uuid
+  level          Int
+  approverId     String?     @db.Uuid
+  status         LeaveStatus @default(PENDING)
+  comment        String?
+  decidedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  @@index([leaveRequestId])
+  @@index([approverId, status])
+}
+
+model Holiday {
+  id     String   @id @default(uuid()) @db.Uuid
+  date   DateTime @unique
+  name   String
+  region String?
+}
+
+model TaxBracket {
+  id        String   @id @default(uuid()) @db.Uuid
+  region    String
+  minAmount Decimal  @db.Decimal(14, 2)
+  maxAmount Decimal? @db.Decimal(14, 2)
+  rate      Decimal  @db.Decimal(6, 4)
+  createdAt DateTime @default(now())
+  @@index([region])
+}
+
+model PayrollRun {
+  id             String        @id @default(uuid()) @db.Uuid
+  period         String
+  idempotencyKey String        @unique
+  status         PayrollStatus @default(DRAFT)
+  totalGross     Decimal       @db.Decimal(16, 2) @default(0)
+  totalNet       Decimal       @db.Decimal(16, 2) @default(0)
+  processedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  payslips Payslip[]
+}
+
+model Payslip {
+  id           String   @id @default(uuid()) @db.Uuid
+  payrollRunId String   @db.Uuid
+  employeeId   String   @db.Uuid
+  gross        Decimal  @db.Decimal(14, 2)
+  tax          Decimal  @db.Decimal(14, 2)
+  deductions   Decimal  @db.Decimal(14, 2)
+  net          Decimal  @db.Decimal(14, 2)
+  breakdown    Json
+  pdfKey       String?
+  createdAt    DateTime @default(now())
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+  @@unique([payrollRunId, employeeId])
+  @@index([employeeId])
+}
+
+model OkrGoal {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  cycle      String
+  objective  String
+  keyResults Json
+  weight     Decimal  @db.Decimal(4, 3)
+  progress   Decimal  @db.Decimal(4, 3) @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, cycle])
+}
+
+model PerformanceReview {
+  id         String       @id @default(uuid()) @db.Uuid
+  reviewerId String       @db.Uuid
+  subjectId  String       @db.Uuid
+  cycle      String
+  status     ReviewStatus @default(DRAFT)
+  rating     Int?
+  comments   String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  reviewer Employee @relation("Reviewer", fields: [reviewerId], references: [id])
+  subject  Employee @relation("Subject", fields: [subjectId], references: [id])
+  @@unique([reviewerId, subjectId, cycle])
+  @@index([subjectId, cycle])
+}
+
+model Feedback {
+  id        String       @id @default(uuid()) @db.Uuid
+  authorId  String       @db.Uuid
+  subjectId String       @db.Uuid
+  type      FeedbackType
+  content   String
+  createdAt DateTime     @default(now())
+  author  Employee @relation("FeedbackAuthor", fields: [authorId], references: [id])
+  subject Employee @relation("FeedbackSubject", fields: [subjectId], references: [id])
+  @@index([subjectId])
+}
+
+model Document {
+  id         String         @id @default(uuid()) @db.Uuid
+  employeeId String         @db.Uuid
+  category   String
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  checksum   String
+  status     DocumentStatus @default(PENDING)
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId])
+  @@index([status])
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  title     String
+  body      String
+  channel   NotificationChannel @default(IN_APP)
+  status    NotificationStatus  @default(PENDING)
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  actor User? @relation(fields: [actorId], references: [id])
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
+
+model ResumeScreeningJob {
+  id          String             @id @default(uuid()) @db.Uuid
+  createdById String             @db.Uuid
+  jobTitle    String
+  criteria    Json
+  status      ScreeningJobStatus @default(PROCESSING)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  results   ResumeScreeningResult[]
+  @@index([createdById, createdAt])
+}
+
+model ResumeScreeningResult {
+  id            String            @id @default(uuid()) @db.Uuid
+  jobId         String            @db.Uuid
+  filename      String
+  score         Decimal           @db.Decimal(4, 3)
+  skillsMatched Json
+  gaps          Json
+  rationale     String
+  decision      ScreeningDecision @default(PENDING)
+  error         String?
+  createdAt     DateTime          @default(now())
+  job ResumeScreeningJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@index([jobId])
+  @@index([decision])
+}

@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); }
+h1, h2, h3 { margin: 0 0 .75rem; }
+label { display: block; font-size: .875rem; color: var(--muted); margin-top: .75rem; }
+input, select, textarea {
+  width: 100%; padding: .6rem .75rem;
+  border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--primary); outline-offset: 1px;
+}

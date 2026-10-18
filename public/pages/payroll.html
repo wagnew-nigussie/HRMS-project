@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HRMS — Payroll</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components/button.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>HRMS</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="leave.html">Leave Requests</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="performance.html">Performance</a>
+      <a href="documents.html">Documents & AI</a>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 1rem;">
+      <p style="font-size: 0.9rem; margin-bottom: 0.5rem;" id="user-name"></p>
+      <button class="btn" id="logout-btn" style="width: 100%;">Sign out</button>
+    </div>
+  </aside>
+  <main class="content">
+    <h1>Payroll</h1>
+    <div class="card">
+      <h3>Generate Payroll</h3>
+      <button class="btn" id="run-payroll-btn">Run Monthly Payroll</button>
+    </div>
+    <div class="card">
+      <h3>My Payslips</h3>
+      <ul id="payslip-list" style="list-style: none; padding: 0;"></ul>
+    </div>
+  </main>
+  <script type="module">
+    import { apiFetch } from '/js/core/api.js';
+    import { initLayout } from '/js/core/layout.js';
+    initLayout();
+
+    async function loadPayslips() {
+      const slips = await apiFetch('/payroll/payslips/me');
+      const list = document.getElementById('payslip-list');
+      if (!slips.length) return list.innerHTML = '<li>No payslips yet.</li>';
+      list.innerHTML = slips.map(s => `
+        <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between;">
+          <span>Net Pay: $${s.net}</span>
+          <button class="btn" onclick="download('${s.id}')" style="padding: 0.2rem 0.5rem;">Download PDF</button>
+        </li>
+      `).join('');
+    }
+
+    window.download = async (id) => {
+      const token = sessionStorage.getItem('access');
+      const res = await fetch(`/api/v1/payroll/payslips/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = window.URL.createObjectURL(blob);
+      a.download = `payslip-${id}.pdf`;
+      a.click();
+    };
+
+    document.getElementById('run-payroll-btn').onclick = async () => {
+      await apiFetch('/payroll/runs', { method: 'POST', body: JSON.stringify({ period: '2026-10', idempotencyKey: `run-${Date.now()}` }) });
+      alert('Payroll Run!');
+      loadPayslips();
+    };
+
+    loadPayslips();
+  </script>
+</body>
+</html>
