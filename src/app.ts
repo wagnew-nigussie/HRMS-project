@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'path';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
@@ -16,6 +17,10 @@ import { performanceRouter } from './modules/performance/performance.routes';
 import { analyticsRouter } from './modules/analytics/analytics.routes';
 
 const app = express();
+
+// Enable GZIP compression for faster page loads
+app.use(compression());
+
 app.use(helmet({ contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false }));
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '1mb' }));

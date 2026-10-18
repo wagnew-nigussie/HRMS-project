@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HRMS — Analytics</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components/button.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+  <!-- Load Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>HRMS</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="analytics.html" class="active">Analytics</a>
+      <a href="employees.html">Employees</a>
+      <a href="attendance.html">Attendance</a>
+      <a href="profile.html">My Profile</a>
+      <a href="leave.html">Leave Requests</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="performance.html">Performance</a>
+      <a href="documents.html">Documents & AI</a>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 1rem;">
+      <p id="user-name" style="font-size: 0.9rem;"></p>
+      <button class="btn" id="logout-btn" style="width: 100%;">Sign out</button>
+    </div>
+  </aside>
+  <main class="content">
+    <h1>HR Analytics</h1>
+    
+    <div class="stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div class="card" style="margin-top: 0;">
+        <div style="font-size: 0.9rem; color: var(--muted);">Total Employees</div>
+        <div id="total-emp" style="font-size: 2rem; font-weight: bold;">—</div>
+      </div>
+      <div class="card" style="margin-top: 0;">
+        <div style="font-size: 0.9rem; color: var(--muted);">Active Accounts</div>
+        <div id="active-emp" style="font-size: 2rem; font-weight: bold; color: green;">—</div>
+      </div>
+    </div>
+    
+    <div class="card" style="margin-top: 1.5rem;">
+      <h3>Headcount by Department</h3>
+      <div style="max-width: 400px; margin: 0 auto;">
+        <canvas id="deptChart"></canvas>
+      </div>
+    </div>
+  </main>
+  <script type="module">
+    import { apiFetch } from '/js/core/api.js';
+    import { initLayout } from '/js/core/layout.js';
+    initLayout();
+
+    async function loadAnalytics() {
+      try {
+        const data = await apiFetch('/analytics/headcount');
+        document.getElementById('total-emp').textContent = data.total;
+        document.getElementById('active-emp').textContent = data.active;
+        
+        // Render Chart.js
+        const labels = data.byDepartment.map(d => d.department || 'Unassigned');
+        const values = data.byDepartment.map(d => d.total);
+
+        const ctx = document.getElementById('deptChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: values,
+              backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+      } catch (e) {
+        alert('Only Admins and HR can view Analytics.');
+        window.location.href = '/pages/dashboard.html';
+      }
+    }
+    loadAnalytics();
+  </script>
+</body>
+</html>

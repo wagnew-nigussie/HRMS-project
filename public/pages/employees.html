@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HRMS — Employees</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components/button.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>HRMS</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="analytics.html">Analytics</a>
+            <a href="employees.html">Employees</a>
+      <a href="attendance.html">Attendance</a>
+      <a href="profile.html">My Profile</a>
+      <a href="leave.html">Leave Requests</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="performance.html">Performance</a>
+      <a href="documents.html">Documents & AI</a>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 1rem;">
+      <p id="user-name" style="font-size: 0.9rem;"></p>
+      <button class="btn" id="logout-btn" style="width: 100%;">Sign out</button>
+    </div>
+  </aside>
+  <main class="content">
+    <h1>Employee Directory</h1>
+    
+    <div id="admin-only" class="card" style="display: none; margin-bottom: 1.5rem;">
+      <h3>Add New Employee</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <input type="text" id="emp-first" placeholder="First Name" />
+        <input type="text" id="emp-last" placeholder="Last Name" />
+        <input type="email" id="emp-email" placeholder="Email (name@company.com)" />
+        <input type="password" id="emp-pass" placeholder="Password (min 12 chars)" />
+        <select id="emp-role">
+          <option value="EMPLOYEE">Employee</option>
+          <option value="HR_MANAGER">HR Manager</option>
+          <option value="FINANCE">Finance</option>
+        </select>
+        <button class="btn" id="add-emp-btn">Create Employee</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>All Employees</h3>
+      <table style="width: 100%; text-align: left; border-collapse: collapse; margin-top: 1rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border);">
+            <th style="padding: 0.5rem;">Name</th>
+            <th style="padding: 0.5rem;">Email</th>
+            <th style="padding: 0.5rem;">Role</th>
+            <th style="padding: 0.5rem;">Code</th>
+          </tr>
+        </thead>
+        <tbody id="emp-list"></tbody>
+      </table>
+    </div>
+  </main>
+  <script type="module">
+    import { apiFetch } from '/js/core/api.js';
+    import { initLayout } from '/js/core/layout.js';
+    initLayout();
+
+    async function loadEmployees() {
+      try {
+        const employees = await apiFetch('/employees');
+        const list = document.getElementById('emp-list');
+        if (!employees.length) return list.innerHTML = '<tr><td colspan="4">No employees found.</td></tr>';
+        list.innerHTML = employees.map(e => `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 0.5rem;">${e.firstName} ${e.lastName}</td>
+            <td style="padding: 0.5rem;">${e.user.email}</td>
+            <td style="padding: 0.5rem;"><strong>${e.user.role}</strong></td>
+            <td style="padding: 0.5rem;">${e.employeeCode}</td>
+          </tr>
+        `).join('');
+      } catch (e) { 
+        alert('Only Admins and HR can view this page.'); 
+        window.location.href = '/pages/dashboard.html'; 
+      }
+    }
+
+    const role = JSON.parse(atob(sessionStorage.getItem('access').split('.')[1])).role;
+    if (role === 'ADMIN' || role === 'HR_MANAGER') {
+      document.getElementById('admin-only').style.display = 'block';
+    }
+
+    document.getElementById('add-emp-btn').onclick = async () => {
+      const first = document.getElementById('emp-first').value;
+      const last = document.getElementById('emp-last').value;
+      const email = document.getElementById('emp-email').value;
+      const pass = document.getElementById('emp-pass').value;
+      const r = document.getElementById('emp-role').value;
+
+      // 1. Check empty fields
+      if (!first || !email || !pass) return alert('Please fill in First Name, Email, and Password');
+
+      // 2. Check valid Email Format (Regex)
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return alert('Invalid email format! Please use something like name@company.com');
+      }
+
+      // 3. Check Password Length (Backend Zod requires min 12)
+      if (pass.length < 12) {
+        return alert('Password must be at least 12 characters long!');
+      }
+
+      try {
+        const res = await fetch('/api/v1/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: first, lastName: last, email, password: pass, role: r,
+            employeeCode: 'EMP-' + Math.floor(Math.random()*100000), 
+            baseSalary: '3000', hireDate: new Date().toISOString()
+          })
+        });
+        
+        // Show exact error from backend if it fails
+        if (!res.ok) {
+          const err = await res.json();
+          if (err.code === 'VALIDATION_ERROR' && err.fields) {
+            const fieldErrors = err.fields.body || err.fields;
+            const firstError = Object.values(fieldErrors)[0];
+            throw new Error('Validation: ' + (Array.isArray(firstError) ? firstError[0] : firstError));
+          }
+          throw new Error(err.message || 'Failed to create employee');
+        }
+        
+        alert('Employee created successfully!');
+        document.getElementById('emp-first').value = '';
+        document.getElementById('emp-last').value = '';
+        document.getElementById('emp-email').value = '';
+        document.getElementById('emp-pass').value = '';
+        loadEmployees();
+      } catch (e) { 
+        alert(e.message); 
+      }
+    };
+
+    loadEmployees();
+  </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HRMS — My Profile</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components/button.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>HRMS</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="analytics.html">Analytics</a>
+            <a href="employees.html">Employees</a>
+      <a href="attendance.html">Attendance</a>
+      <a href="profile.html">My Profile</a>
+      <a href="leave.html">Leave Requests</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="performance.html">Performance</a>
+      <a href="documents.html">Documents & AI</a>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 1rem;">
+      <p id="user-name" style="font-size: 0.9rem;"></p>
+      <button class="btn" id="logout-btn" style="width: 100%;">Sign out</button>
+    </div>
+  </aside>
+  <main class="content">
+    <h1>My Profile Settings</h1>
+    <div class="card">
+      <h3>Personal Information</h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem; max-width: 400px;">
+        <div>
+          <label style="font-size: 0.9rem; color: var(--muted);">First Name (Read Only)</label>
+          <input type="text" id="prof-first" disabled style="background: var(--bg);" />
+        </div>
+        <div>
+          <label style="font-size: 0.9rem; color: var(--muted);">Last Name (Read Only)</label>
+          <input type="text" id="prof-last" disabled style="background: var(--bg);" />
+        </div>
+        <div>
+          <label style="font-size: 0.9rem; color: var(--muted);">Phone Number</label>
+          <input type="text" id="prof-phone" placeholder="+1 234 567 890" />
+        </div>
+        <div>
+          <label style="font-size: 0.9rem; color: var(--muted);">Address</label>
+          <input type="text" id="prof-address" placeholder="123 Main St" />
+        </div>
+        <div>
+          <label style="font-size: 0.9rem; color: var(--muted);">Emergency Contact</label>
+          <input type="text" id="prof-emergency" placeholder="Jane Doe - +1 987 654 321" />
+        </div>
+        <button class="btn" id="save-profile-btn" style="margin-top: 1rem; background: var(--primary); color: white;">Save Changes</button>
+      </div>
+    </div>
+  </main>
+  <script type="module">
+    import { apiFetch } from '/js/core/api.js';
+    import { initLayout } from '/js/core/layout.js';
+    initLayout();
+
+    let currentEmployeeId = null;
+
+    async function loadProfile() {
+      try {
+        const me = await apiFetch('/employees/me');
+        currentEmployeeId = me.id;
+        document.getElementById('prof-first').value = me.firstName;
+        document.getElementById('prof-last').value = me.lastName;
+        document.getElementById('prof-phone').value = me.phone || '';
+        document.getElementById('prof-address').value = me.address || '';
+        document.getElementById('prof-emergency').value = me.emergencyContact || '';
+      } catch (e) { alert('Could not load profile'); }
+    }
+
+    document.getElementById('save-profile-btn').onclick = async () => {
+      const phone = document.getElementById('prof-phone').value;
+      const address = document.getElementById('prof-address').value;
+      const emergency = document.getElementById('prof-emergency').value;
+
+      try {
+        const token = sessionStorage.getItem('access');
+        const res = await fetch(`/api/v1/employees/${currentEmployeeId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ phone, address, emergencyContact: emergency })
+        });
+
+        if (!res.ok) throw new Error('Failed to update profile');
+        alert('Profile updated successfully!');
+      } catch (e) { alert(e.message); }
+    };
+
+    loadProfile();
+  </script>
+</body>
+</html>

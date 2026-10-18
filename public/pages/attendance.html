@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HRMS — Attendance</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components/button.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>HRMS</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="analytics.html">Analytics</a>
+            <a href="employees.html">Employees</a>
+      <a href="attendance.html" class="active">Attendance</a>
+      <a href="profile.html">My Profile</a>
+      <a href="leave.html">Leave Requests</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="performance.html">Performance</a>
+      <a href="documents.html">Documents & AI</a>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 1rem;">
+      <p id="user-name" style="font-size: 0.9rem;"></p>
+      <button class="btn" id="logout-btn" style="width: 100%;">Sign out</button>
+    </div>
+  </aside>
+  <main class="content">
+    <h1>Attendance Reports</h1>
+    <div class="card">
+      <h3>Latest Clock-ins (Last 100)</h3>
+      <table style="width: 100%; text-align: left; border-collapse: collapse; margin-top: 1rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border);">
+            <th style="padding: 0.5rem;">Employee</th>
+            <th style="padding: 0.5rem;">Clock In</th>
+            <th style="padding: 0.5rem;">Clock Out</th>
+            <th style="padding: 0.5rem;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="attendance-list"></tbody>
+      </table>
+    </div>
+  </main>
+  <script type="module">
+    import { apiFetch } from '/js/core/api.js';
+    import { initLayout } from '/js/core/layout.js';
+    initLayout();
+
+    async function loadAttendance() {
+      try {
+        const records = await apiFetch('/attendance/all');
+        const list = document.getElementById('attendance-list');
+        if (!records.length) return list.innerHTML = '<tr><td colspan="4">No attendance records yet.</td></tr>';
+        
+        list.innerHTML = records.map(r => `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 0.5rem;"><strong>${r.employee.firstName} ${r.employee.lastName}</strong><br><small>${r.employee.employeeCode}</small></td>
+            <td style="padding: 0.5rem;">${new Date(r.clockInAt).toLocaleString()}</td>
+            <td style="padding: 0.5rem;">${r.clockOutAt ? new Date(r.clockOutAt).toLocaleString() : '—'}</td>
+            <td style="padding: 0.5rem; color: ${r.status === 'OPEN' ? 'green' : 'gray'};"><strong>${r.status}</strong></td>
+          </tr>
+        `).join('');
+      } catch (e) { 
+        alert('Only Admins and HR can view this page.');
+        window.location.href = '/pages/dashboard.html';
+      }
+    }
+    loadAttendance();
+  </script>
+</body>
+</html>
